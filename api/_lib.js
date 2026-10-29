@@ -1,12 +1,14 @@
 // Gemeinsame Hilfsfunktionen für den Stetig-Telegram-Bot.
 // Dateien mit "_" am Anfang werden von Vercel nicht als eigene Adresse veröffentlicht.
+// Alle Einstellungen (Bot-Token, Schlüssel, Besitzer) liegen im Upstash-Speicher,
+// nicht in Vercel. Eingerichtet wird über /api/setup.
 
 const REDIS_URL = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
 export const INBOX = 'stetig:inbox';
 export const AWAIT_SLEEP = 'stetig:awaitSleep';
+const CFG = 'stetig:cfg';
 
 export async function redis(...cmd) {
   if (!REDIS_URL || !REDIS_TOKEN) throw new Error('Upstash Redis ist nicht verbunden (KV_REST_API_URL fehlt).');
@@ -20,8 +22,16 @@ export async function redis(...cmd) {
   return j.result;
 }
 
-export async function tg(method, payload) {
-  const r = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
+export async function getCfg() {
+  const raw = await redis('GET', CFG);
+  return raw ? JSON.parse(raw) : {};
+}
+export async function saveCfg(cfg) {
+  await redis('SET', CFG, JSON.stringify(cfg));
+}
+
+export async function tg(token, method, payload) {
+  const r = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -29,8 +39,8 @@ export async function tg(method, payload) {
   return r.json();
 }
 
-export function tgFileUrl(path) {
-  return `https://api.telegram.org/file/bot${BOT_TOKEN}/${path}`;
+export function tgFileUrl(token, path) {
+  return `https://api.telegram.org/file/bot${token}/${path}`;
 }
 
 // Datum in deutscher Zeit als YYYY-MM-DD
@@ -101,4 +111,6 @@ export const HELP = [
   '',
   'Alles andere landet als Notiz im Journal.',
   'Die Einträge erscheinen beim nächsten Öffnen der App.',
+  '',
+  '/schluessel zeigt deinen App-Schlüssel und den Link für die Morgenfrage.',
 ].join('\n');
